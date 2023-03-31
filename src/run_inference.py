@@ -1,6 +1,6 @@
 import os
 import os.path as osp
-import ants
+import SimpleITK as sitk
 from options.test_options import TestOptions
 from data import create_dataset
 from models import create_model
@@ -39,26 +39,25 @@ def mkdir(folder):
 
 
 def load_model(opt):
-    opt.num_threads = 0  
-    opt.batch_size = 1  
-    opt.serial_batches = True  
-    opt.no_flip = True  
-    model = create_model(opt) 
-    model.setup(opt)  
+    opt.num_threads = 0
+    opt.batch_size = 1
+    opt.serial_batches = True
+    opt.no_flip = True
+    model = create_model(opt)
+    model.setup(opt)
     if opt.eval:
         model.eval()
     return model
 
 
 def mr_to_ct(
-    img_fp: str,
-    model: torch.nn.Module, 
-    transform, 
-    info: list, 
-    save_fp: str=None,
-    overlap_ratio: float=0.6,
-    ) -> None:
-
+        img_fp: str,
+        model: torch.nn.Module,
+        transform,
+        info: list,
+        save_fp: str = None,
+        overlap_ratio: float = 0.6,
+) -> None:
     data = transform({'A': img_fp})["A"]
     start = time()
 
@@ -69,14 +68,16 @@ def mr_to_ct(
             roi_size=(256, 256, 32),
             sw_batch_size=4,
             predictor=model,
-            overlap=overlap_ratio)  
+            overlap=overlap_ratio)
 
     output = output.squeeze(0).squeeze(0).cpu().detach().numpy()
 
     print('Done...')
-    print(f'Time elapsed: {time()-start:.3f} seconds')
+    print(f'Time elapsed: {time() - start:.3f} seconds')
     output = output * 2047.5 + 1023.5  # map to CT hounsfield units
-    ants.image_write(ants.from_numpy(output, origin=info[0], spacing=info[1], direction=info[2]), save_fp)
+    # ants.image_write(ants.from_numpy(output, origin=info[0], spacing=info[1], direction=info[2]), save_fp)
+
+    sitk.WriteImage(sitk.GetImageFromArray(output), save_fp)
     return output
 
 
@@ -90,9 +91,13 @@ if __name__ == '__main__':
     opt.output_nc = 1
     opt.direction = 'AtoB'
     opt.netG = 'resnet_9blocks'
-    opt.name = 'jmi'
+    opt.name = 'authors'
     opt.epoch = 'best'
     model = load_model(opt).netG
+
+    # provide input and output directories
+    opt.input_dir = "MRI"
+    opt.output_dir = "sCT"
 
     # check input and output directories
     mkdir(opt.output_dir)
@@ -105,15 +110,15 @@ if __name__ == '__main__':
         LoadImaged(keys="A"),
         AddChanneld(keys="A"),
         NormalizeIntensityd(keys="A", nonzero=True),
-        ScaleIntensityRangePercentilesd(keys="A", lower=0.01, upper=99.9, b_min=-1.0, b_max=1.0, clip=True, relative=False),
+        ScaleIntensityRangePercentilesd(keys="A", lower=0.01, upper=99.9, b_min=-1.0, b_max=1.0, clip=True,
+                                        relative=False),
         ToTensord(keys="A"),
-        ])
+    ])
 
     for mr_path in mr_paths:
         pid = os.path.basename(mr_path).split('.')[0]
-        mr = ants.image_read(mr_path)
-        info = [mr.origin, mr.spacing, mr.direction]
+        mr = sitk.ReadImage(mr_path)
+        # change for sitk here
+        info = [mr.GetOrigin(), mr.GetSpacing(), mr.GetDirection()]
         output_path = os.path.join(opt.output_dir, f'{pid}_sCT.nii.gz')
         f_ct = mr_to_ct(mr_path, model, transform, info, output_path, opt.overlap_ratio)
-
-   
