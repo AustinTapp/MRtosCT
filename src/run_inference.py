@@ -1,6 +1,6 @@
 import os
 import os.path as osp
-import ants
+#import ants
 import SimpleITK as sitk
 from options.test_options import TestOptions
 from data import create_dataset
