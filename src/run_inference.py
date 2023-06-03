@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import ants
 import SimpleITK as sitk
 from options.test_options import TestOptions
 from data import create_dataset
@@ -31,6 +32,7 @@ from monai.transforms import (
     NormalizeIntensityd,
     ScaleIntensityRangePercentilesd,
 )
+
 
 
 def mkdir(folder):
@@ -117,8 +119,17 @@ if __name__ == '__main__':
 
     for mr_path in mr_paths:
         pid = os.path.basename(mr_path).split('.')[0]
-        mr = sitk.ReadImage(mr_path)
-        # change for sitk here
-        info = [mr.GetOrigin(), mr.GetSpacing(), mr.GetDirection()]
+        mr = ants.image_read(mr_path)
+        info = [mr.origin, mr.spacing, mr.direction]
         output_path = os.path.join(opt.output_dir, f'{pid}_sCT.nii.gz')
         f_ct = mr_to_ct(mr_path, model, transform, info, output_path, opt.overlap_ratio)
+
+     # use of sitk below
+
+    # for mr_path in mr_paths:
+    #     pid = os.path.basename(mr_path).split('.')[0]
+    #     mr = sitk.ReadImage(mr_path)
+    #     info = [mr.GetOrigin(), mr.GetSpacing(), mr.GetDirection()]
+    #     output_path = os.path.join(opt.output_dir, f'{pid}_sCT.nii')
+    #     f_ct = mr_to_ct(mr_path, model, transform, info, output_path, opt.overlap_ratio)
+
